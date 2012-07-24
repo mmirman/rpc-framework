@@ -12,19 +12,31 @@ Features
 * Modal logic inspired worlds, aka hosts:
     * Services run from the "World IO" monad, written `Host w => WIO w`
     * This allows world specific actions: if one world will be compiled to JS and one to x86, we could have the following types
-       * `putStrLn :: IO_World w => WIO w a`
-       * `installTextBox :: JS_World w => WIO w ()`
+
+```haskell
+    putStrLn :: IO_World w => WIO w a
+    installTextBox :: JS_World w => WIO w ()
+```
 
 * Arbitrily complex remote procedures:
-    * Rather than only being able to call a remote function `foo :: (Sendable a, Sendable b, Host w) => a -> WIO w b`, we can remote call anything of the form
+    * Rather than only being able to call a remote function 
+
+```haskell
+    foo :: (Sendable a, Sendable b, Host w) => a -> WIO w b
+```
+we can remote call anything of the form
+
 ```haskell 
     foo :: (Sendable a1 ,..., Sendable aN, Sendable b, Host w) => a1 -> ... -> aN -> WIO w b
 ```
-    * It can also "send" pure functions across the wire: 
+
+    * It can also "send" pure functions across the wire
+
 ```haskell 
     instance (Serializable a) => Sendable a
     instance (Sendable a, Sendable b) => Sendable (a -> b)
 ```
+
 	* **note** this really sets up a service and the sent function will persist indefinitely, and thus is slow.  This also means that the function received isn't really pure
 * local code only
     * unlike some modal logic aproaches to mobile languages, the only code that can be executed is the code you compiled, and not code passed from world to world
