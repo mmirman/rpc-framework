@@ -25,7 +25,7 @@ Features
     foo :: (Sendable a1 ,..., Sendable aN, Sendable b, Host w) => a1 -> ... -> aN -> WIO w b
 ```
 
-    * It can also _send_ pure functions across the wire **note** this really sets up a service and the sent function will persist indefinitely, and thus is slow.  This also means that the function received isn't really pure
+    * It can _send_ pure functions across the wire **note** this really sets up a service and the sent function will persist indefinitely, and thus is slow.  This also means that the function received isn't really pure
 
 ```haskell 
     instance (Serializable a) => Sendable a
