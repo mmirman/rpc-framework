@@ -1,11 +1,11 @@
 test : 
 	cabal configure
 	cabal build
-	cp dist/build/test/test .
+	cp dist/build/rpc-test/rpc-test .
 
 run : test
-	./test
+	./rpc-test
 
 clean :
 	rm -f -R dist
-	rm test
+	rm rpc-test

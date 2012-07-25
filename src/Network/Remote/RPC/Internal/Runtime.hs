@@ -9,21 +9,20 @@
  IncoherentInstances,
  FunctionalDependencies
  #-}
-module Network.Remote.RPCInternal ( WIO()
-                                  , world
-                                  , realRemoteCall
-                                  , remoteCall
-                                  , makeService
-                                  , Host(..)
-                                  , Sendable()
-                                  , Ref()
-                                  , liftIO
-                                  , runServer
-                                  , runServerBG
-                                  ) where
+module Network.Remote.RPC.Internal.Runtime ( WIO()
+                                           , world
+                                           , realRemoteCall
+                                           , remoteCall
+                                           , makeService
+                                           , Host(..)
+                                           , Sendable()
+                                           , Ref()
+                                           , liftIO
+                                           , runServer
+                                           , runServerBG
+                                           ) where
 
-
-import Network.Remote.MultiServer
+import Network.Remote.RPC.Internal.MultiServer (send, recv, AIO(), connectToService, unsafePerformServer, addService, getHandlers, addServiceByName, ServiceID(..), startServer)
 import Data.Functor ((<$>))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Concurrent (forkIO, ThreadId, forkOS)

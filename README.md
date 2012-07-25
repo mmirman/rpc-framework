@@ -49,6 +49,7 @@ Usage
 * Installing a remote service: 
    * `makeServices` registers a list of service names which all have the same host 
    * `autoService` automatically figures out which services in the given file run on the specified host and registers them.  A good usage pattern is to provide all modules with services with a registration hook that can be appended to the main server.
+
 ```haskell
     main = runServer $(makeServices [ 'nameOfService1, ... , 'nameOfServiceN])
 ```
@@ -86,10 +87,11 @@ Usage
 Examples
 --------
 
-* src/RPCTest.hs contains a worked example.  
+* src/RPCTest.hs is an example.  
+    * It runs two worlds, Client and Server, both on localhost, one on port 9000 and the other on 9001.
     * To run and build it:  `make run`
     * To build it: `make test`
-    * To run it after building it: `./test`
+    * To run it after building it: `./rpc-test`
 
 
 

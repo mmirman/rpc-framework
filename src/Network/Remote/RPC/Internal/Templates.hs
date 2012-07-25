@@ -1,21 +1,19 @@
 {-# LANGUAGE
  TemplateHaskell,
- MultiParamTypeClasses,
- ScopedTypeVariables,
  PatternGuards
  #-} 
-module Network.Remote.MobileTransform ( build
-                                      , rpcCall
-                                      , makeHost
-                                      , makeServices
-                                      , autoService
-                                      ) where
+module Network.Remote.RPC.Internal.Templates ( build
+                                             , rpcCall
+                                             , makeHost
+                                             , makeServices
+                                             , autoService
+                                             ) where
 import Control.Monad (forM)
-import Data.Functor
+import Data.Functor ((<$>))
 import Language.Haskell.TH
-import Control.Monad.IO.Class
-import Network.Remote.RPCInternal
-import Data.List
+import Control.Monad.IO.Class (MonadIO(..))
+import Network.Remote.RPC.Internal.Runtime (realRemoteCall, makeService)
+import Data.List (nub)
 
 instance MonadIO Q where liftIO = runIO
 
@@ -70,7 +68,7 @@ getHost :: Type -> Maybe Name
 getHost t = case t of
   ForallT _ _ t -> getHost t
   AppT (AppT ArrowT _) t -> getHost t
-  AppT (AppT (ConT wio) (ConT nm)) _ | "WIO" <- nameBase wio, Just "Network.Remote.RPCInternal" <- nameModule wio -> Just nm
+  AppT (AppT (ConT wio) (ConT nm)) _ | "WIO" <- nameBase wio, nameModule wio == nameModule 'makeService -> Just nm
   _ -> Nothing
 
 autoService :: Name -> Q Exp

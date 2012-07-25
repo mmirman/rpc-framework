@@ -1,6 +1,5 @@
 {-# LANGUAGE 
- TemplateHaskell, 
- ScopedTypeVariables
+ TemplateHaskell
  #-}
 module Main where
 
@@ -20,12 +19,12 @@ client = do
   add <- $(rpcCall 'addServer) 4
   putText $ "r(h4 +) h6 ? " ++ show (add 6)         
 
-doubleServer (t :: Integer) = do
+doubleServer t = do
   Server <- world
-  return (t + t)
+  return (t + t :: Integer)
 
 addServer :: Integer -> WIO Server (Integer -> Integer)
-addServer (t :: Integer) = do
+addServer t = do
   Server <- world
   return (t +)
 

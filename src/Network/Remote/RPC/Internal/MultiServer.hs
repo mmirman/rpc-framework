@@ -3,7 +3,7 @@
  FlexibleInstances,
  MultiParamTypeClasses
  #-}
-module Network.Remote.MultiServer where
+module Network.Remote.RPC.Internal.MultiServer where
 
 import Control.Monad.Reader (MonadReader(..), runReaderT, ReaderT)
 import Control.Monad.IO.Class (MonadIO(..))
