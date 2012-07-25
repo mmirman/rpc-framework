@@ -1,18 +1,21 @@
 {-# LANGUAGE
  TemplateHaskell,
  MultiParamTypeClasses,
- ScopedTypeVariables
+ ScopedTypeVariables,
+ PatternGuards
  #-} 
 module Network.Remote.MobileTransform ( build
                                       , rpcCall
                                       , makeHost
                                       , makeServices
+                                      , autoService
                                       ) where
-
+import Control.Monad (forM)
+import Data.Functor
 import Language.Haskell.TH
 import Control.Monad.IO.Class
 import Network.Remote.RPCInternal
-
+import Data.List
 
 instance MonadIO Q where liftIO = runIO
 
@@ -40,8 +43,6 @@ act :: Dec -> Q [Dec]
 
 act v = return [v]
 
-
-
 rpcCall :: Name -> Q Exp
 rpcCall name = do
   VarI _ ty _ _ <- reify name
@@ -59,3 +60,27 @@ makeServices names = do
                     , varE nm
                     , stringE $ show nm
                     ]
+
+extractAllFunctions :: String-> [String]
+extractAllFunctions file  = 
+  --  allMatchingFunctions pattern . parsedModule
+  nub $ map (fst . head . lex) $ lines file
+
+getHost :: Type -> Maybe Name
+getHost t = case t of
+  ForallT _ _ t -> getHost t
+  AppT (AppT ArrowT _) t -> getHost t
+  AppT (AppT (ConT wio) (ConT nm)) _ | "WIO" <- nameBase wio, Just "Network.Remote.RPCInternal" <- nameModule wio -> Just nm
+  _ -> Nothing
+
+autoService :: Name -> Q Exp
+autoService host = do
+  file <- loc_filename <$> location
+  moduleCode <- runIO $ readFile file
+  nms <- forM (extractAllFunctions moduleCode) $ \nm -> recover (return []) $ do
+    f <- reify $ mkName nm
+    return $ case f of 
+      VarI nm ty _ _ | show (getHost ty) == show (Just host) -> [nm]
+      _ -> []
+
+  makeServices $ concat nms

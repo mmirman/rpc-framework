@@ -24,11 +24,13 @@ doubleServer (t :: Integer) = do
   Server <- world
   return (t + t)
 
+addServer :: Integer -> WIO Server (Integer -> Integer)
 addServer (t :: Integer) = do
   Server <- world
   return (t +)
 
 main = do
-  runServerBG $(makeServices [ 'addServer , 'doubleServer])
+  runServerBG $(autoService 'Server)
+  -- runServerBG $(makeServices [ 'addServer , 'doubleServer])
   -- one of these has to not return, otherwise the program will exit
   runServer client    

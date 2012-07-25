@@ -46,10 +46,30 @@ Usage
 ```haskell
     $(makeHost "WorldName" "host_location" #portNumber)
 ```
-* Installing a remote service:
+* Installing a remote service: 
+   * `makeServices` registers a list of service names which all have the same host 
+   * `autoService` automatically figures out which services in the given file run on the specified host and registers them.  A good usage pattern is to provide all modules with services with a registration hook that can be appended to the main server.
 ```haskell
-    main = runServer $(makeServices [ 'addServer , 'doubleServer])
+    main = runServer $(makeServices [ 'nameOfService1, ... , 'nameOfServiceN])
 ```
+
+```haskell
+    main = runServer $(autoService 'HostName)
+```
+
+```haskell
+    module First where
+    services = $(autoService 'HostName)
+
+    module Second where
+    services = $(autoService 'HostName)
+
+    module Main where
+    import qualified First as F
+    import qualified Second as S
+    main = runServer $ F.services >> S.services
+```
+
 * Calling a remote service:
 ```haskell
     addServer :: Integer -> WIO Server (Integer -> Integer)
