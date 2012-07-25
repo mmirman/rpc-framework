@@ -2,11 +2,14 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                rpc-framework
-version:             0.0.0.0
+version:             0.0.0.1
 synopsis:            a remote procedure call framework
-description:         A library and framework for making remote procedure calls in haskell easy and typesafe.  See http://github.com/mmirman/haskogeneous for more information.
+description:
+  A library and framework for making remote procedure calls in haskell easy and typesafe.
+  .
+  See <http://github.com/mmirman/rpc-framework> for more information.
 
-homepage:            http://github.com/mmirman/haskogeneous
+homepage:            http://github.com/mmirman/rpc-framework
 license:             BSD3
 license-file:        LICENSE
 author:              Matthew Mirman
@@ -15,6 +18,10 @@ maintainer:          mmirman@andrew.cmu.edu
 category:            Network, Web
 build-type:          Simple
 cabal-version:       >=1.8
+
+source-repository head
+  type:    git
+  location: git://github.com/mmirman/rpc-framework.git
 
 library
   exposed-modules:     Network.Remote.RPC,
