@@ -5,6 +5,17 @@
  StandaloneDeriving,
  ScopedTypeVariables
  #-}
+{- |
+Module      :  Network.Remote.RPC.Internal.MultiServer
+Copyright   :  (c) Matthew Mirman 2012
+License     :  BSD-style (see the file LICENSE)
+Maintainer  :  Matthew Mirman <mmirman@andrew.cmu.edu>
+Stability   :  experimental
+Portability :   GeneralizedNewtypeDeriving, FlexibleInstances, MultiParamTypeClasses, StandaloneDeriving, ScopedTypeVariables
+
+A server that allows for the declaration of services and for the 
+calling of services.
+-}
 module Network.Remote.RPC.Internal.MultiServer where
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Reader (MonadReader(..), runReaderT, ReaderT)
@@ -90,7 +101,8 @@ connectToService host port service = do
   send handle service
   return handle
 
-
+-- | 'Servable' is a declaration that the given monad can be made into a 
+-- servlet.
 class (Functor m, Monad m, MonadIO m, Forkable m) => Servable m 
 instance Servable IO
 instance Servable m => Servable (AIO m)

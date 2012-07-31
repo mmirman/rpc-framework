@@ -1,9 +1,18 @@
 {-# LANGUAGE
  TemplateHaskell,
  PatternGuards
- #-} 
-module Network.Remote.RPC.Internal.Templates ( build
-                                             , rpcCall
+ #-}
+{-
+Module      :  Network.Remote.RPC.Internal.Templates
+Copyright   :  (c) Matthew Mirman 2012
+License     :  BSD-style (see the file LICENSE)
+Maintainer  :  Matthew Mirman <mmirman@andrew.cmu.edu>
+Stability   :  experimental
+Portability :  TemplateHaskell, PatternGuards
+
+The functions for easily making a remote procedure call and setting up servers
+-}
+module Network.Remote.RPC.Internal.Templates ( rpcCall
                                              , makeHost
                                              , makeServices
                                              , autoService
@@ -17,6 +26,8 @@ import Data.List (nub)
 
 instance MonadIO Q where liftIO = runIO
 
+-- | @$('makeHost' \"HostName\" \"hostLocation\" hostPortNumber)@ 
+-- makes a @newtype HostName@ and declares an @instance 'Host' HostName@.
 makeHost :: String -> String -> Integer -> Q [Dec]
 makeHost n l p = do
   let nm = mkName n
@@ -31,16 +42,9 @@ makeHost n l p = do
          , inst
          ]
 
-build :: Q [Dec] -> Q [Dec]
-build m = do
-  dlist <- m
-  dl <- mapM act dlist
-  return $ concat dl
-  
-act :: Dec -> Q [Dec]
-
-act v = return [v]
-
+-- | @$('rpcCall' 'serviceNm)@ simply splices in 
+-- @'realRemoteCall' (undefined :: typeofcall) \"serviceNm\"@ which is typed in a manner
+-- similar to typeofcall. 
 rpcCall :: Name -> Q Exp
 rpcCall name = do
   VarI _ ty _ _ <- reify name
@@ -50,7 +54,9 @@ rpcCall name = do
         , sigE (varE 'undefined) $ return ty -- (undefined :: ty)
         , stringE nm -- nm
         ]
-  
+
+-- | @$('makeServices' ['service1 ,..., 'serviceN])@ makes all given 
+-- services listen for incoming requests.
 makeServices :: [Name] -> Q Exp
 makeServices names = do
   doE $ flip map names $ \nm -> 
@@ -71,6 +77,9 @@ getHost t = case t of
   AppT (AppT (AppT (ConT wio) (ConT nm)) _) _ | "WIO" <- nameBase wio, nameModule wio == nameModule 'makeService -> Just nm
   _ -> Nothing
 
+-- | @$('autoService' 'World)@ finds all services declared in the 
+-- module that definitely run on the given world, 
+-- and makes them listen for incoming requests.
 autoService :: Name -> Q Exp
 autoService host = do
   file <- loc_filename <$> location

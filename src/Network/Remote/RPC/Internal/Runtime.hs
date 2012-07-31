@@ -9,12 +9,23 @@
  IncoherentInstances,
  TypeFamilies
  #-}
+{- |
+Module      :  Network.Remote.RPC.Internal.Runtime
+Copyright   :  (c) Matthew Mirman 2012
+License     :  BSD-style (see the file LICENSE)
+Maintainer  :  Matthew Mirman <mmirman@andrew.cmu.edu>
+Stability   :  experimental
+Portability :  GeneralizedNewtypeDeriving, StandaloneDeriving, ScopedTypeVariables, FlexibleInstances, UndecidableInstances, MultiParamTypeClasses, FunctionalDependencies, IncoherentInstances, TypeFamilies
+
+The functions for using a function as a service and calling a remote process
+-}
 module Network.Remote.RPC.Internal.Runtime ( WIO()
-                                           , world
+                                           , onHost
                                            , realRemoteCall
                                            , makeService
                                            , Host(..)
                                            , Sendable()
+                                           , Servable()
                                            , Ref()
                                            , liftIO
                                            , runServer
@@ -29,11 +40,17 @@ import Control.Concurrent (ThreadId, forkOS)
 import System.IO (Handle)
 import Control.Concurrent.Forkable
 
+-- | @'Host' World@ declares that the world is a host.  It should
+-- only have one constructor, and the location and port should be invariant
+-- of the given constructor. 
+-- Specifically, 'getLocation' and 'getPort' should work even if bottom is supplied.
 class Host a where
   getLocation :: a -> String
   getPort :: a -> Integer
   getValue :: a
   
+-- | @'WIO' w m a@ is a newtype over a server transformer that adds the phantom
+-- host argument @w@
 newtype WIO w m a = WIO { runWIO :: AIO m a }
                            
 deriving instance Monad m => Monad (WIO w m)
@@ -56,12 +73,18 @@ runServerBG m = do
 world :: forall w m . (Servable m, Host w) => WIO w m w
 world = return (getValue :: w)
 
+-- | 'onHost' declares that the code is running on the given host.
+-- it is usefull when a type inference is wanted, but the action
+-- also needs to be made into a service and used as a remote procedure
+onHost :: forall w m . (Servable m, Host w) => w -> WIO w m ()
+onHost _ = return ()           
+
 data Ref a a' = Ref String Integer ServiceID
               | Val String
 
 deriving instance Show (Ref a a')
 deriving instance Read (Ref a a')
-                                        
+               
 class (Servable m) => Sendable m a a' | a' -> a, a m -> a', a a' -> m where
   getRefValue :: Host w => w -> Ref a a' -> AIO m a'  
   makeRefFrom :: Host w => w -> a -> AIO m (Ref a a')
