@@ -18,8 +18,6 @@ import Network (connectTo, accept, PortID(PortNumber), listenOn)
 import Data.Functor ((<$>))
 import Control.Concurrent.Forkable
 
---import System.IO.Unsafe (unsafePerformIO)
-
 data ServiceID = LocNumber Integer
                | LocName String
                deriving (Show, Read, Ord, Eq)
@@ -53,7 +51,7 @@ startServer port (AIO aio) = do
   forkIO $ do
     s <- liftIO $ listenOn $ PortNumber $ fromInteger port
     forever $ do
-      (handle, host, port) <- liftIO $ accept s
+      (handle, _, _) <- liftIO $ accept s
       service <- recv handle
       f <- liftIO $ withMVar r $ \(map,_) -> return $ safeFind map service
       forkIO $ case f handle of

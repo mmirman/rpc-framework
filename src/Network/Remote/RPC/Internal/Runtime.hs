@@ -7,8 +7,7 @@
  MultiParamTypeClasses,
  FunctionalDependencies,
  IncoherentInstances,
- TypeFamilies,
- FlexibleContexts
+ TypeFamilies
  #-}
 module Network.Remote.RPC.Internal.Runtime ( WIO()
                                            , world
@@ -22,7 +21,7 @@ module Network.Remote.RPC.Internal.Runtime ( WIO()
                                            , runServerBG
                                            ) where
 
-import Network.Remote.RPC.Internal.MultiServer (send, recv, AIO(), connectToService, addService, getHandlers, addServiceByName, ServiceID(..), startServer, Servable)
+import Network.Remote.RPC.Internal.MultiServer (send, recv, AIO(), connectToService, addService, addServiceByName, ServiceID(..), startServer, Servable)
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Functor ((<$>))
 import Control.Monad.IO.Class (MonadIO(..))
@@ -67,9 +66,10 @@ class (Servable m) => Sendable m a a' | a' -> a, a m -> a', a a' -> m where
   getRefValue :: Host w => w -> Ref a a' -> AIO m a'  
   makeRefFrom :: Host w => w -> a -> AIO m (Ref a a')
   
-instance (Read a', Show a, a ~ a', Servable m) => Sendable m a a' where
+instance (Read a, Show a', a ~ a',  Servable m) => Sendable m a a' where
   makeRefFrom _ v = return $ Val (show v)
   getRefValue _ (Val s) = return $ read s
+  getRefValue _ _ = error "should not be a ref: in Runtime.hs - getRefValue"
   
 instance (Sendable m a' a, Sendable m b b') => Sendable m (a -> b) (a' -> WIO w m b') where  
   makeRefFrom w f = do
@@ -81,6 +81,7 @@ instance (Sendable m a' a, Sendable m b b') => Sendable m (a -> b) (a' -> WIO w 
     return $ Ref (getLocation w) (getPort w) ptr
 
   {-# NOINLINE getRefValue #-}
+  getRefValue _ (Val _) = error "should not be a value: in Runtime.hs - getRefValue"
   getRefValue w (Ref w' p s) = do
     return $ \a -> WIO $ do
       aRef :: Ref a' a <- makeRefFrom w a
@@ -120,7 +121,6 @@ instance ( Sendable m' a a', Host w, Host w'
   
   {-# INLINE realRemoteCallH #-}
   realRemoteCallH act _ nm putVals = do
-    let host = getLocation (getValue :: w)
     let w = getActWorld act
     handle <- connectToService (getLocation w) (getPort w) $ LocName nm
     putVals handle
