@@ -32,13 +32,14 @@ module Network.Remote.RPC.Internal.Runtime ( WIO()
                                            , runServerBG
                                            ) where
 
-import Network.Remote.RPC.Internal.MultiServer (send, recv, AIO(), connectToService, addService, addServiceByName, ServiceID(..), startServer, Servable)
+import Network.Remote.RPC.Internal.MultiServer (send, recv, AIO(), connectToService, addService, addServiceByName, ServiceID(..), startServer, Servable, track)
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Functor ((<$>))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Concurrent (ThreadId, forkOS)
 import System.IO (Handle)
 import Control.Concurrent.Forkable
+
 
 -- | @'Host' World@ declares that the world is a host.  It should
 -- only have one constructor, and the location and port should be invariant
@@ -105,13 +106,13 @@ instance (Sendable m a' a, Sendable m b b') => Sendable m (a -> b) (a' -> WIO w 
 
   {-# NOINLINE getRefValue #-}
   getRefValue _ (Val _) = error "should not be a value: in Runtime.hs - getRefValue"
-  getRefValue w (Ref w' p s) = do
-    return $ \a -> WIO $ do
-      aRef :: Ref a' a <- makeRefFrom w a
-      handle <- connectToService w' p s
-      send handle aRef
-      bRef :: Ref b b' <- recv handle
-      getRefValue w bRef
+  getRefValue w (Ref w' p s) = track (w',p,s) $ \a -> WIO $ do
+    aRef :: Ref a' a <- makeRefFrom w a
+    handle <- connectToService w' p s
+    send handle aRef
+    bRef :: Ref b b' <- recv handle
+    getRefValue w bRef
+    
 
 fetchRefValue :: (Sendable m a a', Host w, Servable m) => Ref a a' -> WIO w m a'
 fetchRefValue ref = do

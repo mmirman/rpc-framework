@@ -34,7 +34,7 @@ import Control.Monad.Trans.Class ( MonadTrans(..))
 
 {- $remoteExample
 This example shows how to make remote procedure from a Client to a Host.  
-It also shows how to send functions, even though these will space leak.
+It also shows how to send functions, which can now be collected.
 
 >-- LANGUAGE TemplateHaskell, KindSignatures, FlexibleContexts
 >module Main where
@@ -61,8 +61,8 @@ addServer t = return (t +)
 
 When used, @addServer@ will return a function of type @Integer -> 'WIO' w IO Integer@
 because the resulting function will actually be a remote call.  Every time @addServer@
-is called, it turns the function into a permanent service.  This should change in the 
-future. For now, recognize that this can create a space leak if not used carefully.
+is called, it turns the function into a service which is collected when the function is no  
+longer needed.
 
 >client = do
 >  onHost Client

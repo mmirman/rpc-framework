@@ -25,11 +25,11 @@ Features
     foo :: (Sendable a1 ,..., Sendable aN, Sendable b, Host w) => a1 -> ... -> aN -> WIO w b
 ```
 
-* It can _send_ pure functions across the wire **note** this really sets up a service and the sent function will persist indefinitely, and thus is slow.  This also means that the function received isn't really pure
+* It can _send_ _pure_ functions across the wire and now garbage collect them.
 
 ```haskell 
-    instance (Serializable a) => Sendable a
-    instance (Sendable a, Sendable b) => Sendable (a -> b)
+    instance (Serializable a) => Sendable a a
+    instance (Sendable a' a, Sendable b b') => Sendable (a -> b) (a' -> IO b')
 ```
 
 * Only local code can execute

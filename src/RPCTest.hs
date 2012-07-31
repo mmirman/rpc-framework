@@ -2,7 +2,6 @@
 module Main where
 
 import Network.Remote.RPC
-
 putText str = lift $ putStrLn str
 
 $(makeHost "Client" "localhost" 9000)
@@ -16,9 +15,11 @@ client = do
   putText $ "r(h3+h3) ? " ++ show double
          
   add <- $(rpcCall 'addServer) 4
+  t <- add 8
+  putText $ "r(h4 +) h8 ? " ++ show t
   r <- add 6
-  
   putText $ "r(h4 +) h6 ? " ++ show r
+  
   $(rpcCall 'talkServer) "hi"
     
 doubleServer :: Integer -> WIO Server IO Integer
@@ -37,3 +38,4 @@ main = do
 --  runServerBG $(makeServices [ 'addServer , 'doubleServer])
   -- one of these has to not return, otherwise the program will exit
   runServer client
+
