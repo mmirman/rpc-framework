@@ -4,15 +4,15 @@
  ScopedTypeVariables,
  FlexibleInstances,
  UndecidableInstances,
- TypeFamilies, 
  MultiParamTypeClasses,
+ FunctionalDependencies,
  IncoherentInstances,
- FunctionalDependencies
+ TypeFamilies,
+ FlexibleContexts
  #-}
 module Network.Remote.RPC.Internal.Runtime ( WIO()
                                            , world
                                            , realRemoteCall
-                                           , remoteCall
                                            , makeService
                                            , Host(..)
                                            , Sendable()
@@ -22,96 +22,101 @@ module Network.Remote.RPC.Internal.Runtime ( WIO()
                                            , runServerBG
                                            ) where
 
-import Network.Remote.RPC.Internal.MultiServer (send, recv, AIO(), connectToService, unsafePerformServer, addService, getHandlers, addServiceByName, ServiceID(..), startServer)
+import Network.Remote.RPC.Internal.MultiServer (send, recv, AIO(), connectToService, addService, getHandlers, addServiceByName, ServiceID(..), startServer, Servable)
+import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Functor ((<$>))
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Concurrent (forkIO, ThreadId, forkOS)
+import Control.Concurrent (ThreadId, forkOS)
 import System.IO (Handle)
+import Control.Concurrent.Forkable
 
 class Host a where
   getLocation :: a -> String
   getPort :: a -> Integer
   getValue :: a
   
-newtype WIO w a = WIO { runWIO :: AIO a }
-  
-liftAIO = WIO
-                  
-deriving instance Monad (WIO w)
-deriving instance Functor (WIO w)
-deriving instance MonadIO (WIO w)
+newtype WIO w m a = WIO { runWIO :: AIO m a }
+                           
+deriving instance Monad m => Monad (WIO w m)
+deriving instance Functor m => Functor (WIO w m)
+deriving instance MonadIO m => MonadIO (WIO w m)
+deriving instance Forkable m => Forkable (WIO w m)
+instance Servable m => Servable (WIO w m)
+instance MonadTrans (WIO w) where lift = WIO . lift
 
 -- | 'runServer' runs a name server and doesn't return
-runServer :: forall w . Host w => WIO w () -> IO ()
+runServer :: forall w m . (Servable m, Host w) => WIO w m () -> m ()
 runServer = startServer (getPort (undefined :: w)) . runWIO 
 
 -- | 'runServerBG' runs a name server on a background thread and does return
-runServerBG :: Host w => WIO w () -> IO ThreadId
+runServerBG :: Host w => WIO w IO () -> IO ThreadId
 runServerBG m = do
   tid <- forkOS $ runServer m
   return tid
 
-world :: forall w . Host w => WIO w w
+world :: forall w m . (Servable m, Host w) => WIO w m w
 world = return (getValue :: w)
 
-data Ref a = Ref String Integer ServiceID
-           | Val String
-           deriving (Show, Read)
+data Ref a a' = Ref String Integer ServiceID
+              | Val String
 
-class Sendable a where
-  getRefValue :: Host w => w -> Ref a -> AIO a
-  makeRefFrom :: Host w => w -> a -> AIO (Ref a)
-    
-instance (Read a, Show a) => Sendable a where
+deriving instance Show (Ref a a')
+deriving instance Read (Ref a a')
+                                        
+class (Servable m) => Sendable m a a' | a' -> a, a m -> a', a a' -> m where
+  getRefValue :: Host w => w -> Ref a a' -> AIO m a'  
+  makeRefFrom :: Host w => w -> a -> AIO m (Ref a a')
+  
+instance (Read a', Show a, a ~ a', Servable m) => Sendable m a a' where
   makeRefFrom _ v = return $ Val (show v)
   getRefValue _ (Val s) = return $ read s
-
-instance (Sendable a, Sendable b) => Sendable (a -> b) where
+  
+instance (Sendable m a' a, Sendable m b b') => Sendable m (a -> b) (a' -> WIO w m b') where  
   makeRefFrom w f = do
     ptr <- addService $ \handle -> do
-          aRef <- recv handle
+          aRef :: Ref a' a <- recv handle
           bVal <- f <$> getRefValue w aRef
-          bRef <- makeRefFrom w bVal
+          bRef :: Ref b b' <- makeRefFrom w bVal
           send handle bRef
     return $ Ref (getLocation w) (getPort w) ptr
 
   {-# NOINLINE getRefValue #-}
   getRefValue w (Ref w' p s) = do
-    state <- getHandlers 
-    return $ \a -> unsafePerformServer state $ do
-      aRef <- makeRefFrom w a
+    return $ \a -> WIO $ do
+      aRef :: Ref a' a <- makeRefFrom w a
       handle <- connectToService w' p s
       send handle aRef
-      bRef <- recv handle
+      bRef :: Ref b b' <- recv handle
       getRefValue w bRef
 
-fetchRefValue :: (Sendable a , Host w) => Ref a -> WIO w a
+fetchRefValue :: (Sendable m a a', Host w, Servable m) => Ref a a' -> WIO w m a'
 fetchRefValue ref = do
   w <- world
-  liftAIO $ getRefValue w ref 
+  WIO $ getRefValue w ref
   
-newRef :: (Sendable a , Host w) => a -> WIO w (Ref a)
+newRef :: forall a a' w m . (Sendable m a a', Host w, Servable m) => a -> WIO w m (Ref a a')
 newRef a = do
-  w <- world
-  liftAIO $ makeRefFrom w a
-
-sendVal :: (Sendable a, Host w) => Handle -> a -> WIO w ()    
-sendVal handle val = newRef val >>= send handle
-
-recvVal :: (Sendable a, Host w) => Handle -> WIO w a
-recvVal handle = recv handle >>= fetchRefValue
-
-class Host w => RPC a w where
-  type Initialize a w
+  w :: w <- world
+  WIO $ makeRefFrom w a
   
-  remoteCall :: a -> Initialize a w
-  remoteCall = undefined
-  
-  realRemoteCallH :: a -> w -> String -> (Handle -> WIO w ()) -> Initialize a w
+sendVal :: forall a a' w m . (Sendable m a a', Host w, Servable m) => a' -> Handle -> a -> WIO w m ()
+sendVal _ handle val = do
+  r :: Ref a a' <- newRef val 
+  send handle r
 
-instance (Sendable a, Host w, Host w') => RPC (WIO w a) w' where
-  
-  type Initialize (WIO w a) w' = WIO w' a
+recvVal :: forall a a' w m . (Sendable m a a', Host w, Servable m) => a -> Handle -> WIO w m a'
+recvVal _ handle = do
+  t :: Ref a a' <- recv handle 
+  r :: a' <- fetchRefValue t
+  return r
+
+
+class (Servable m, Host w) => RPC a a' m w | a' -> w, a' -> m  where
+  realRemoteCallH :: a -> w -> String -> (Handle -> WIO w m ()) -> a'
+
+instance ( Sendable m' a a', Host w, Host w'
+         , Servable m, Servable m') 
+         => RPC (WIO w m a) (WIO w' m' a') m' w' where
   
   {-# INLINE realRemoteCallH #-}
   realRemoteCallH act _ nm putVals = do
@@ -119,36 +124,34 @@ instance (Sendable a, Host w, Host w') => RPC (WIO w a) w' where
     let w = getActWorld act
     handle <- connectToService (getLocation w) (getPort w) $ LocName nm
     putVals handle
-    recvVal handle
+    recvVal (undefined :: a) handle
 
-getActWorld :: forall w a . Host w => WIO w a -> w
+getActWorld :: forall w a m . Host w => WIO w m a -> w
 getActWorld _ = getValue
 
-instance (Sendable a, RPC b w') => RPC (a -> b) w' where
-  type Initialize (a -> b) w' = a -> Initialize b w'
-  
+instance (Sendable m a' a, RPC b b' m w') => RPC (a -> b) (a' -> b') m w' where
   {-# INLINE realRemoteCallH #-}
   realRemoteCallH _ w nm putOldVals a = realRemoteCallH (undefined :: b) w nm putVal
     where putVal handle = do
             putOldVals handle
-            sendVal handle a
-  
+            sendVal (undefined :: a) handle a 
+
 {-# INLINE realRemoteCall #-}
-realRemoteCall :: forall a w . (Host w , RPC a w) => a -> String -> Initialize a w
+realRemoteCall :: forall a a' w m . RPC a a' m w => a -> String -> a'
 realRemoteCall i n = realRemoteCallH i (getValue :: w) n $ const $ return ()
 
-makeService :: Service a w => a -> String -> WIO w ()
-makeService fun nm = do
-  liftAIO $ addServiceByName nm $ runWIO . runOnService fun
-  return ()
-  
-class Host w => Service a w | a -> w where
-  runOnService :: a -> Handle -> WIO w ()
-  
-instance (Host w, Sendable a) => Service (WIO w a) w where
-  runOnService action handle = action >>= sendVal handle
-  
-instance (Sendable a, Service b w) => Service (a -> b) w where
+class (Host w, Servable m) => Service a m w | a -> w m where
+  runOnService :: a -> Handle -> WIO w m ()
+
+instance (Host w, Servable m, Sendable m a a') => Service (WIO w m a) m w where
+  runOnService action handle = action >>= sendVal (undefined :: a') handle
+
+instance (Sendable m a' a, Service b m w) => Service (a -> b) m w where
   runOnService foo handle = do
-    val <- recvVal handle 
+    val <- recvVal (undefined :: a') handle 
     runOnService (foo val) handle
+
+makeService :: Service a m w => a -> String -> WIO w m ()
+makeService fun nm = do
+  WIO $ addServiceByName nm $ runWIO . runOnService fun
+  return ()

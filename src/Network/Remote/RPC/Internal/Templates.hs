@@ -68,7 +68,7 @@ getHost :: Type -> Maybe Name
 getHost t = case t of
   ForallT _ _ t -> getHost t
   AppT (AppT ArrowT _) t -> getHost t
-  AppT (AppT (ConT wio) (ConT nm)) _ | "WIO" <- nameBase wio, nameModule wio == nameModule 'makeService -> Just nm
+  AppT (AppT (AppT (ConT wio) (ConT nm)) _) _ | "WIO" <- nameBase wio, nameModule wio == nameModule 'makeService -> Just nm
   _ -> Nothing
 
 autoService :: Name -> Q Exp

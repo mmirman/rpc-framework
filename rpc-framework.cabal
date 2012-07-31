@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                rpc-framework
-version:             0.0.0.1
+version:             0.0.0.2
 synopsis:            a remote procedure call framework
 description:
   A library and framework for making remote procedure calls in haskell easy and typesafe.
@@ -28,6 +28,7 @@ library
                        Network.Remote.RPC.Internal.Runtime, 
                        Network.Remote.RPC.Internal.MultiServer, 
                        Network.Remote.RPC.Internal.Templates
+  other-modules:       Control.Concurrent.Forkable
   build-depends:       base >= 4.3 && < 5.0, 
                        containers >= 0.4 && < 0.6, 
                        template-haskell ==2.7.*,
