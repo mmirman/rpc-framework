@@ -7,7 +7,7 @@
  MultiParamTypeClasses,
  FunctionalDependencies,
  IncoherentInstances,
- TypeFamilies
+ GADTs
  #-}
 {- |
 Module      :  Network.Remote.RPC.Internal.Runtime
@@ -85,31 +85,32 @@ data Ref a a' = Ref String Integer ServiceID
 
 deriving instance Show (Ref a a')
 deriving instance Read (Ref a a')
-               
-class (Servable m, Servable m') => Sendable m a m' a' | m a' -> a, m' a -> a', a -> m, a' -> m'  where
+
+class (Host w, Servable m, Servable m') => Sendable w m a m' a' 
+  | m a' w -> a, m' a -> a', a -> m, a' -> m'  where
   getRefValue :: Host w => w -> Ref a a' -> AIO m' a'  
-  makeRefFrom :: Host w => w -> a -> AIO m (Ref a a')
-  
-instance (Read a, Show a', a ~ a',  Servable m', Servable m) => Sendable m a m' a' where
+  makeRefFrom :: w -> a -> AIO m (Ref a a')
+
+instance (Read a, Show a', a ~ a', Servable m', Servable m, Host w) => Sendable w m a m' a' where
   makeRefFrom _ v = return $ Val (show v)
   getRefValue _ (Val s) = return $ read s
   getRefValue _ _ = error "should not be a ref: in Runtime.hs - getRefValue"
 
-instance (Sendable m b m' b') => Sendable m (AIO m b) m' (WIO w' m' b') where  
+instance (Sendable w m b m' b') => Sendable w m (WIO w m b) m' (WIO w' m' b') where
   makeRefFrom w act = do
     ptr <- addService $ \handle -> do
-          bVal <- act
+          bVal <- runWIO $ act
           bRef :: Ref b b' <- makeRefFrom w bVal
           send handle bRef
     return $ Ref (getLocation w) (getPort w) ptr
 
-  getRefValue _ (Val _) = error "should not be a value: in Runtime.hs - getRefValue"
   getRefValue w (Ref w' p s) = track (w',p,s) $ WIO $ do
     handle <- connectToService w' p s
     bRef :: Ref b b' <- recv handle
     getRefValue w bRef
 
-instance (Sendable m' a' m a, Sendable m b m' b') => Sendable m (a -> b) m' (a' -> WIO w' m' b') where  
+
+instance (Sendable w m' a' m a, Sendable w m b m' b') => Sendable w m (a -> b) m' (a' -> WIO w' m' b') where  
   makeRefFrom w f = do
     ptr <- addService $ \handle -> do
           aRef :: Ref a' a <- recv handle
@@ -118,30 +119,29 @@ instance (Sendable m' a' m a, Sendable m b m' b') => Sendable m (a -> b) m' (a' 
           send handle bRef
     return $ Ref (getLocation w) (getPort w) ptr
 
-  getRefValue _ (Val _) = error "should not be a value: in Runtime.hs - getRefValue"
   getRefValue w (Ref w' p s) = track (w',p,s) $ \a -> WIO $ do
     aRef :: Ref a' a <- makeRefFrom w a
     handle <- connectToService w' p s
     send handle aRef
     bRef :: Ref b b' <- recv handle
     getRefValue w bRef
-    
-fetchRefValue :: (Sendable m' a m a', Host w) => Ref a a' -> WIO w m a'
+
+fetchRefValue :: (Sendable w m' a m a', Host w) => Ref a a' -> WIO w m a'
 fetchRefValue ref = do
   w <- world
   WIO $ getRefValue w ref
   
-newRef :: forall a a' w m m' . (Sendable m a m' a', Host w) => a -> WIO w m (Ref a a')
+newRef :: forall a a' w m m' . (Sendable w m a m' a', Host w) => a -> WIO w m (Ref a a')
 newRef a = do
   w :: w <- world
   WIO $ makeRefFrom w a
   
-sendVal :: forall a a' w m m' . (Sendable m a m' a', Host w) => a' -> Handle -> a -> WIO w m ()
+sendVal :: forall a a' w m m' . (Sendable w m a m' a', Host w) => a' -> Handle -> a -> WIO w m ()
 sendVal _ handle val = do
   r :: Ref a a' <- newRef val 
   send handle r
 
-recvVal :: forall a a' w m m' . (Sendable m' a m a', Host w, Servable m) => a -> Handle -> WIO w m a'
+recvVal :: forall a a' w m m' . (Sendable w m' a m a', Host w, Servable m) => a -> Handle -> WIO w m a'
 recvVal _ handle = do
   t :: Ref a a' <- recv handle 
   r :: a' <- fetchRefValue t
@@ -151,7 +151,7 @@ recvVal _ handle = do
 class (Servable m, Host w) => RPC a a' m w | a' -> w, a' -> m  where
   realRemoteCallH :: a -> w -> String -> (Handle -> WIO w m ()) -> a'
 
-instance ( Sendable m a m' a', Host w, Host w'
+instance ( Sendable w' m a m' a', Host w, Host w'
          , Servable m, Servable m') 
          => RPC (WIO w m a) (WIO w' m' a') m' w' where
   
@@ -165,24 +165,23 @@ instance ( Sendable m a m' a', Host w, Host w'
 getActWorld :: forall w a m . Host w => WIO w m a -> w
 getActWorld _ = getValue
 
-instance (Sendable m a' m a, RPC b b' m w') => RPC (a -> b) (a' -> b') m w' where
-  {-# INLINE realRemoteCallH #-}
+instance (Sendable w' m a' m a, RPC b b' m w') => RPC (a -> b) (a' -> b') m w' where
   realRemoteCallH _ w nm putOldVals a = realRemoteCallH (undefined :: b) w nm putVal
     where putVal handle = do
             putOldVals handle
             sendVal (undefined :: a) handle a 
 
-{-# INLINE realRemoteCall #-}
+
 realRemoteCall :: forall a a' w m . RPC a a' m w => a -> String -> a'
 realRemoteCall i n = realRemoteCallH i (getValue :: w) n $ const $ return ()
 
 class (Host w, Servable m) => Service a m w | a -> w m where
   runOnService :: a -> Handle -> WIO w m ()
 
-instance (Host w, Servable m, Sendable m a m a') => Service (WIO w m a) m w where
+instance (Host w, Servable m, Sendable w m a m a') => Service (WIO w m a) m w where
   runOnService action handle = action >>= sendVal (undefined :: a') handle
 
-instance (Sendable m a' m a, Service b m w) => Service (a -> b) m w where
+instance (Sendable w m a' m a, Service b m w) => Service (a -> b) m w where
   runOnService foo handle = do
     val <- recvVal (undefined :: a') handle 
     runOnService (foo val) handle
@@ -190,4 +189,4 @@ instance (Sendable m a' m a, Service b m w) => Service (a -> b) m w where
 makeService :: Service a m w => a -> String -> WIO w m ()
 makeService fun nm = do
   WIO $ addServiceByName nm $ runWIO . runOnService fun
-  return ()
+  return () 

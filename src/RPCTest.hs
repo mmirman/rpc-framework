@@ -22,7 +22,10 @@ client = do
 
   $(rpcCall 'talkServer) "hi"
 
-
+  --talk <- $(rpcCall 'delayTalkServer)
+    
+--  talk
+    
 doubleServer :: Integer -> WIO Server IO Integer
 doubleServer t = return $ t + t
 
@@ -33,6 +36,16 @@ addServer t = do
 talkServer given = do
   onHost Server
   putText $ "On Server: "++given
+
+vlad :: WIO Client IO (WIO Client IO ())
+vlad = $(rpcCall 'delayTalkServer)
+
+delayTalkServer :: WIO Server IO (WIO Server IO ())
+delayTalkServer = do
+  onHost Server
+  return $ do
+    putText $ "I am called later"
+
 
 main = do
   runServerBG $(autoService 'Server)
