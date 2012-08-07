@@ -15,9 +15,9 @@ client = do
   putText $ "r(h3+h3) ? " ++ show double
          
   add <- $(rpcCall 'addServer) 4
-  t <- WIO $ add 8
+  t <- add 8
   putText $ "r(h4 +) h8 ? " ++ show t
-  r <- WIO $ add 6
+  r <- add 6
   putText $ "r(h4 +) h6 ? " ++ show r
   
   $(rpcCall 'talkServer) "hi"
