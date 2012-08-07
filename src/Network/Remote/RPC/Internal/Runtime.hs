@@ -95,7 +95,7 @@ instance (Read a, Show a', a ~ a',  Servable m', Servable m) => Sendable m a m' 
   getRefValue _ (Val s) = return $ read s
   getRefValue _ _ = error "should not be a ref: in Runtime.hs - getRefValue"
 
-instance (Sendable m b m' b') => Sendable m (AIO m b) m' (AIO m' b') where  
+instance (Sendable m b m' b') => Sendable m (AIO m b) m' (WIO w' m' b') where  
   makeRefFrom w act = do
     ptr <- addService $ \handle -> do
           bVal <- act
@@ -104,7 +104,7 @@ instance (Sendable m b m' b') => Sendable m (AIO m b) m' (AIO m' b') where
     return $ Ref (getLocation w) (getPort w) ptr
 
   getRefValue _ (Val _) = error "should not be a value: in Runtime.hs - getRefValue"
-  getRefValue w (Ref w' p s) = track (w',p,s) $ do
+  getRefValue w (Ref w' p s) = track (w',p,s) $ WIO $ do
     handle <- connectToService w' p s
     bRef :: Ref b b' <- recv handle
     getRefValue w bRef
