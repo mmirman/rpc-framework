@@ -11,7 +11,8 @@ Declaration of the frontend for RPC.
 -}
 
 module Network.Remote.RPC ( Host(..)
-                          , WIO(WIO)
+                          , WIO()
+                          , world
                           , Servable()
                           , liftIO
                           , runServer
