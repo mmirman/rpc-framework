@@ -93,9 +93,9 @@ class (Servable m, Servable m') => Receivable m a m' a'
   | m a' -> a, m' a -> a', a -> m, a' -> m'  where
   getRefValue :: Host w' => w' -> Ref a a' -> AIO m' a'  
   
-class (Host w', Servable m, Servable m') => Sendable w' m a m' a' 
-  | m a' -> a, m' a -> a', a -> m, a' -> m'  where
-  makeRefFrom :: w' -> a -> AIO m (Ref a a')
+class (Host w, Servable m, Servable m') => Sendable w m a m' a' 
+  | m a' w -> a , m' a -> a', a -> m w, a' -> m' where
+  makeRefFrom :: w -> a -> AIO m (Ref a a')
 
 instance (Show a, Read a', a ~ a', Servable m', Servable m, Host w) => Sendable w m a m' a' where
   makeRefFrom _ v = return $ Val (show v)

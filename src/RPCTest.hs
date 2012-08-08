@@ -2,6 +2,8 @@
 module Main where
 
 import Network.Remote.RPC
+
+putText :: String -> WIO w IO ()
 putText str = lift $ putStrLn str
 
 $(makeHost "Client" "localhost" 9000)
@@ -28,23 +30,23 @@ client = do
 doubleServer :: Integer -> WIO Server IO Integer
 doubleServer t = return $ t + t
 
-
 addServer :: Integer -> WIO Server IO (Integer -> Integer)
 addServer t = do
   return (t +)
 
-talkServer given = do
+delayTalkServer = do
   onHost Server
-  putText $ "On Server: "++given
+  putText "I am called now "
+  return $ do
+    putText "I am called later "
 
 vlad :: WIO Client IO (WIO Client IO ())
 vlad = $(rpcCall 'delayTalkServer)
 
-delayTalkServer :: WIO Server IO (WIO Server IO ())
-delayTalkServer = do
+
+talkServer given = do
   onHost Server
-  return $ do
-    putText "I am called later "
+  putText $ "On Server: "++given
 
 main = do
   runServerBG $(autoService 'Server)
