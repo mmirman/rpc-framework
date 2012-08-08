@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, KindSignatures, FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell, KindSignatures, FlexibleContexts, ScopedTypeVariables #-}
 module Main where
 
 import Network.Remote.RPC
@@ -8,53 +8,56 @@ putText str = lift $ putStrLn str
 
 -- define worlds and their defaults.
 $(makeHost "Client" "localhost" 9000)
-$(makeHost "Server" "localhost" 9001)
+$(makeHost "ServerA" "localhost" 9001)
+$(makeHost "ServerB" "localhost" 9002)
   
-
 client :: WIO Client IO ()
 client = do
   onHost Client
-  
-  double <- $(rpcCall 'doubleServer) 3
-  putText $ "r(h3+h3) ? " ++ show double
 
   add <- $(rpcCall 'addServer) 4
   t <- add 8
   putText $ "r(h4 +) h8 ? " ++ show t
-  r <- add 6
-  putText $ "r(h4 +) h6 ? " ++ show r
 
-  $(rpcCall 'talkServer) "hi"
+  talk1 <- $(rpcCall 'recursiveServerB) 4
+  talk2 <- $(rpcCall 'recursiveServerA) 4
+  t <- talk1
+  putText $ " On Client: " ++ t             
+  t <- talk2
+  putText $ " On Client: " ++ t
 
-  talk <- $(rpcCall 'delayTalkServer)
-  talk
-    
-doubleServer :: Integer -> WIO Server IO Integer
-doubleServer t = return $ t + t
-
-addServer :: Integer -> WIO Server IO (Integer -> Integer)
+addServer :: Integer -> WIO ServerA IO (Integer -> Integer)
 addServer t = do
   return (t +)
-
-delayTalkServer = do
-  onHost Server
-  putText "I am called now "
+  
+recursiveServerA :: Int -> WIO ServerA IO (WIO ServerA IO String)
+recursiveServerA 0 = return $ return "goose"
+recursiveServerA (i :: Int) = do
+  onHost ServerA
+  putText "I am A"
   return $ do
-    putText "I am called later "
+    ret <- $(rpcCall 'recursiveServerB) (i-1)
+    putText "I am again A "
+    ret
+    
 
-vlad :: WIO Client IO (WIO Client IO ())
-vlad = $(rpcCall 'delayTalkServer)
-
-talkServer given = do
-  onHost Server
-  putText $ "On Server: "++given
+recursiveServerB :: Int -> WIO ServerB IO (WIO ServerB IO String)
+recursiveServerB 0 = return $ return "duck"
+recursiveServerB i = do
+  onHost ServerB
+  putText "I am B"
+  return $ do
+    ret <- $(rpcCall 'recursiveServerA) (i-1)
+    putText "I am again B"
+    ret
 
 main = do
   -- reset the defaults.  we can set these from a config file if necessary
-  setHost Server "localhost" 9006
   setHost Client "localhost" 9004
-    
-  runServerBG $(autoService 'Server)
+  
+
+  runServerBG $(autoService 'ServerA)
+  runServerBG $(autoService 'ServerB)                 
   -- one of these has to not return, otherwise the program will exit
   runServer client
 
