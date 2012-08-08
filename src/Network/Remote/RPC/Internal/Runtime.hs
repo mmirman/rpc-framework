@@ -24,7 +24,7 @@ module Network.Remote.RPC.Internal.Runtime ( WIO()
                                            , world
                                            , realRemoteCall
                                            , makeService
-                                           , Host(..)
+                                           , Host(setHost, getValue, getDataDefault)
                                            , Sendable()
                                            , Receivable()                                             
                                            , Servable()
@@ -43,14 +43,33 @@ import System.IO (Handle)
 import Control.Concurrent.Forkable
 
 
+import System.IO.Unsafe
+import Data.IORef
+
 -- | @'Host' World@ declares that the world is a host.  It should
 -- only have one constructor, and the location and port should be invariant
 -- of the given constructor. 
 -- Specifically, 'getLocation' and 'getPort' should work even if bottom is supplied.
 class Host a where
-  getLocation :: a -> String
-  getPort :: a -> Integer
+  getDataDefault :: a -> (String, Integer)
   getValue :: a
+
+  getData :: a -> IO (String, Integer)
+  getData w = do
+    let (_ :: a, ioref) = topLevelSetter
+    readIORef ioref
+    
+  -- | @'setHost' world hostname port@ resets the default values
+  -- for the @world@ be carefull to only use this at the beginning of a program.
+  -- note that this uses unsafe state to work. 
+  setHost :: a -> String -> Integer -> IO ()
+  setHost _ l p = do 
+    let (_ :: a, ioref) = topLevelSetter
+    writeIORef ioref (l,p)
+  
+  topLevelSetter :: (a, IORef (String,Integer))
+  topLevelSetter = (getValue, unsafePerformIO $ do
+                       newIORef $ getDataDefault (getValue :: a))
   
 -- | @'WIO' w m a@ is a newtype over a server transformer that adds the phantom
 -- host argument @w@
@@ -65,7 +84,9 @@ instance MonadTrans (WIO w) where lift = WIO . lift
 
 -- | 'runServer' runs a name server and doesn't return
 runServer :: forall w m . (Servable m, Host w) => WIO w m () -> m ()
-runServer = startServer (getPort (undefined :: w)) . runWIO 
+runServer m = do
+  p <- liftIO $ snd <$> getData (getValue :: w)
+  startServer p $ runWIO m
 
 -- | 'runServerBG' runs a name server on a background thread and does return
 runServerBG :: Host w => WIO w IO () -> IO ThreadId
@@ -109,7 +130,9 @@ instance (Sendable w m b m' b') => Sendable w m (WIO w m b) m' (WIO w' m' b') wh
           bVal <- runWIO $ act
           bRef :: Ref b b' <- makeRefFrom w bVal
           send handle bRef
-    return $ Ref (getLocation w) (getPort w) ptr
+    (l,p) <- liftIO $ getData w
+
+    return $ Ref l p ptr
 instance (Receivable m b m' b') => Receivable m (WIO w m b) m' (WIO w' m' b') where
   getRefValue w (Ref w' p s) = track (w',p,s) $ WIO $ do
     handle <- connectToService w' p s
@@ -123,11 +146,12 @@ instance (Receivable m' a' m a, Sendable w m b m' b') => Sendable w m (a -> b) m
           bVal <- f <$> getRefValue w aRef
           bRef :: Ref b b' <- makeRefFrom w bVal
           send handle bRef
-    return $ Ref (getLocation w) (getPort w) ptr
+    (l,p) <- liftIO $ getData w          
+    return $ Ref l p ptr
 
 instance (Sendable w' m' a' m a, Receivable m b m' b') => Receivable m (a -> b) m' (a' -> WIO w' m' b') where  
   getRefValue w (Ref w' p s) = track (w',p,s) $ \a -> WIO $ do
-    aRef :: Ref a' a <- makeRefFrom (undefined :: w') a
+    aRef :: Ref a' a <- makeRefFrom (getValue :: w') a
     handle <- connectToService w' p s
     send handle aRef
     bRef :: Ref b b' <- recv handle
@@ -165,7 +189,8 @@ instance ( Receivable m a m' a', Host w, Host w'
   {-# INLINE realRemoteCallH #-}
   realRemoteCallH act _ nm putVals = do
     let w = getActWorld act
-    handle <- connectToService (getLocation w) (getPort w) $ LocName nm
+    (l,p) <- liftIO $ getData w
+    handle <- connectToService l p $ LocName nm
     putVals handle
     recvVal (undefined :: a) handle
 

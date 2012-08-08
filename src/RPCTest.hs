@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, KindSignatures, FlexibleContexts, IncoherentInstances #-}
+{-# LANGUAGE TemplateHaskell, KindSignatures, FlexibleContexts #-}
 module Main where
 
 import Network.Remote.RPC
@@ -6,9 +6,11 @@ import Network.Remote.RPC
 putText :: String -> WIO w IO ()
 putText str = lift $ putStrLn str
 
+-- define worlds and their defaults.
 $(makeHost "Client" "localhost" 9000)
 $(makeHost "Server" "localhost" 9001)
   
+
 client :: WIO Client IO ()
 client = do
   onHost Client
@@ -43,12 +45,15 @@ delayTalkServer = do
 vlad :: WIO Client IO (WIO Client IO ())
 vlad = $(rpcCall 'delayTalkServer)
 
-
 talkServer given = do
   onHost Server
   putText $ "On Server: "++given
 
 main = do
+  -- reset the defaults.  we can set these from a config file if necessary
+  setHost Server "localhost" 9006
+  setHost Client "localhost" 9004
+    
   runServerBG $(autoService 'Server)
   -- one of these has to not return, otherwise the program will exit
   runServer client

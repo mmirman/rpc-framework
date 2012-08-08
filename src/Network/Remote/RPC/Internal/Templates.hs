@@ -34,8 +34,9 @@ makeHost n l p = do
   let host = mkName "Host"
   dat <- dataD (cxt []) nm [] [normalC nm []] []
   inst <- instanceD (cxt []) (appT (conT host) (conT nm))
-          [ funD (mkName "getLocation") [clause [wildP] (normalB $ stringE l) []]
-          , funD (mkName "getPort") [clause [wildP] (normalB $ litE $ IntegerL p) []]
+          [ funD (mkName "getDataDefault") [clause [wildP] (normalB $ tupE [ stringE l
+                                                                           , litE $ IntegerL p
+                                                                           ]) []]
           , funD (mkName "getValue") [clause [] (normalB $ conE nm) []]
           ]
   return [ dat
