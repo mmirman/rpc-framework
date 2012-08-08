@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, KindSignatures, FlexibleContexts #-}
+{-# LANGUAGE TemplateHaskell, KindSignatures, FlexibleContexts, IncoherentInstances #-}
 module Main where
 
 import Network.Remote.RPC
@@ -28,6 +28,7 @@ client = do
 doubleServer :: Integer -> WIO Server IO Integer
 doubleServer t = return $ t + t
 
+
 addServer :: Integer -> WIO Server IO (Integer -> Integer)
 addServer t = do
   return (t +)
@@ -36,19 +37,17 @@ talkServer given = do
   onHost Server
   putText $ "On Server: "++given
 
-vlad :: WIO Client IO (WIO Server IO ())
+vlad :: WIO Client IO (WIO Client IO ())
 vlad = $(rpcCall 'delayTalkServer)
 
 delayTalkServer :: WIO Server IO (WIO Server IO ())
 delayTalkServer = do
   onHost Server
   return $ do
-    w <- world 
-    putText $ "I am called later "++(show (getPort w))
+    putText "I am called later "
 
 main = do
   runServerBG $(autoService 'Server)
---  runServerBG $(makeServices [ 'addServer , 'doubleServer])
   -- one of these has to not return, otherwise the program will exit
   runServer client
 
