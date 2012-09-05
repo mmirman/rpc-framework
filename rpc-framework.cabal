@@ -1,5 +1,5 @@
 name:                rpc-framework
-version:             1.0.0.0
+version:             2.0.0.0
 synopsis:            a remote procedure call framework
 description:
   A library and framework for making remote procedure calls in haskell easy and typesafe.
@@ -24,8 +24,8 @@ library
   exposed-modules:     Network.Remote.RPC,
                        Network.Remote.RPC.Internal.Runtime, 
                        Network.Remote.RPC.Internal.MultiServer, 
-                       Network.Remote.RPC.Internal.Templates
-  other-modules:       Control.Concurrent.Forkable
+                       Network.Remote.RPC.Internal.Templates,
+                       Control.Concurrent.ForkableRPC
   build-depends:       base >= 4.3 && < 5.0, 
                        containers >= 0.4 && < 0.6, 
                        template-haskell ==2.7.*,

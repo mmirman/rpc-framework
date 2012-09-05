@@ -27,7 +27,7 @@ import Control.Concurrent.MVar (modifyMVar, modifyMVar_, newMVar, withMVar, MVar
 import System.IO (Handle, hWaitForInput, hFlush, hGetLine, hClose, hPutStrLn)
 import Network (connectTo, accept, PortID(PortNumber), listenOn)
 import Data.Functor ((<$>))
-import Control.Concurrent.Forkable
+import Control.Concurrent.ForkableRPC
 import System.Mem.Weak
 
 data ServiceID = LocNumber Integer

@@ -40,7 +40,7 @@ import Data.Functor ((<$>))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Concurrent (ThreadId, forkOS)
 import System.IO (Handle)
-import Control.Concurrent.Forkable
+import Control.Concurrent.ForkableRPC
 
 
 import System.IO.Unsafe

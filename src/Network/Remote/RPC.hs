@@ -30,7 +30,7 @@ module Network.Remote.RPC ( Host(..)
 
 import Network.Remote.RPC.Internal.Runtime
 import Network.Remote.RPC.Internal.Templates
-import Control.Concurrent.Forkable
+import Control.Concurrent.ForkableRPC
 import Control.Monad.Trans.Class ( MonadTrans(..))
 
 {- $remoteExample
