@@ -1,5 +1,5 @@
 name:                rpc-framework
-version:             2.0.0.1
+version:             2.0.0.2
 synopsis:            a remote procedure call framework
 description:
   A library and framework for making remote procedure calls in haskell easy and typesafe.
