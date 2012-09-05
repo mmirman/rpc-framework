@@ -52,4 +52,4 @@ executable rpc-test
   main-is: src/RPCTest.hs
   build-depends: rpc-framework, base >= 4.0
   ghc-options: -threaded
-  extensions: TemplateHaskell
+  extensions: TemplateHaskell, ScopedTypeVariables

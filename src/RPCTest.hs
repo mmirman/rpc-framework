@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, KindSignatures, FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell, ScopedTypeVariables #-}
 module Main where
 
 import Network.Remote.RPC
