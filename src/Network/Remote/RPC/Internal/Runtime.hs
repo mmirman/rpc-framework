@@ -7,7 +7,9 @@
  MultiParamTypeClasses,
  FunctionalDependencies,
  OverlappingInstances,
- GADTs
+ GADTs,
+ KindSignatures,
+ FlexibleContexts
  #-}
 {- |
 Module      :  Network.Remote.RPC.Internal.Runtime
@@ -71,7 +73,7 @@ class Host a where
   topLevelSetter :: (a, IORef (String,Integer))
   topLevelSetter = (getValue, unsafePerformIO $ do
                        newIORef $ getDataDefault (getValue :: a))
-  
+
 -- | @'WIO' w m a@ is a newtype over a server transformer that adds the phantom
 -- host argument @w@
 newtype WIO w m a = WIO { runWIO :: AIO m a }
@@ -83,6 +85,7 @@ deriving instance Forkable m => Forkable (WIO w m)
 deriving instance Catchable m => Catchable (WIO w m)
 instance Servable m => Servable (WIO w m)
 instance MonadTrans (WIO w) where lift = WIO . lift
+
 
 -- | 'runServer' runs a name server and doesn't return
 runServer :: forall w m . (Servable m, Host w) => WIO w m () -> m ()
@@ -114,17 +117,18 @@ deriving instance Read (Ref a a')
 
 class (Servable m, Servable m') => Receivable m a m' a' 
   | m a' -> a, m' a -> a', a -> m, a' -> m'  where
-  getRefValue :: Host w' => w' -> Ref a a' -> AIO m' a'  
-  
+  getRefValue :: Ref a a' -> AIO m' a'  
+
 class (Host w, Servable m, Servable m') => Sendable w m a m' a' 
   | m a' w -> a , m' a -> a', a -> m w, a' -> m' where
   makeRefFrom :: w -> a -> AIO m (Ref a a')
 
 instance (Show a, Read a', a ~ a', Servable m', Servable m, Host w) => Sendable w m a m' a' where
   makeRefFrom _ v = return $ Val $ show v
+
 instance (Show a, Read a', a ~ a', Servable m', Servable m) => Receivable m a m' a' where  
-  getRefValue _ (Val s) = return $ read s
-  getRefValue _ _ = error "should not be a ref: in Runtime.hs - getRefValue"
+  getRefValue (Val s) = return $ read s
+  getRefValue _ = error "should not be a ref: in Runtime.hs - getRefValue"
 
 instance (Sendable w m b m' b') => Sendable w m (WIO w m b) m' (WIO w' m' b') where
   makeRefFrom w act = do
@@ -133,41 +137,44 @@ instance (Sendable w m b m' b') => Sendable w m (WIO w m b) m' (WIO w' m' b') wh
           bRef :: Ref b b' <- makeRefFrom w bVal
           send handle bRef
     (l,p) <- liftIO $ getData w
-
     return $ Ref l p ptr
+
 instance (Receivable m b m' b') => Receivable m (WIO w m b) m' (WIO w' m' b') where
-  getRefValue w (Ref w' p s) = track (w',p,s) $ WIO $ do
+  getRefValue (Ref w' p s) = track (w',p,s) $ WIO $ do
     handle <- connectToService w' p s
     bRef :: Ref b b' <- recv handle
-    getRefValue w bRef
+    getRefValue bRef
 
 instance (Receivable m' a' m a, Sendable w m b m' b') => Sendable w m (a -> b) m' (a' -> WIO w' m' b') where  
   makeRefFrom w f = do
     ptr <- addService $ \handle -> do
           aRef :: Ref a' a <- recv handle
-          bVal <- f <$> getRefValue w aRef
+          bVal <- f <$> getRefValue aRef
           bRef :: Ref b b' <- makeRefFrom w bVal
           send handle bRef
     (l,p) <- liftIO $ getData w          
     return $ Ref l p ptr
 
+
 instance (Sendable w' m' a' m a, Receivable m b m' b') => Receivable m (a -> b) m' (a' -> WIO w' m' b') where  
-  getRefValue w (Ref w' p s) = track (w',p,s) $ \a -> WIO $ do
+  getRefValue (Ref w' p s) = track (w',p,s) $ \a -> WIO $ do
     aRef :: Ref a' a <- makeRefFrom (getValue :: w') a
     handle <- connectToService w' p s
     send handle aRef
     bRef :: Ref b b' <- recv handle
-    getRefValue w bRef
+    getRefValue bRef
+
+
 
 fetchRefValue :: (Receivable m' a m a', Host w) => Ref a a' -> WIO w m a'
-fetchRefValue ref = do
-  w <- world
-  WIO $ getRefValue w ref
-  
+fetchRefValue ref = WIO $ getRefValue ref
+
 newRef :: forall a a' w m m' . (Sendable w m a m' a', Host w) => a -> WIO w m (Ref a a')
 newRef a = do
   w :: w <- world
   WIO $ makeRefFrom w a
+
+  
   
 sendVal :: forall a a' w m m' . (Sendable w m a m' a', Host w) => a' -> Handle -> a -> WIO w m ()
 sendVal _ handle val = do
@@ -180,14 +187,17 @@ recvVal _ handle = do
   r :: a' <- fetchRefValue t
   return r
 
+getActWorld :: forall w a m . Host w => WIO w m a -> w
+getActWorld _ = getValue
 
-class (Servable m, Host w) => RPC a a' m w | a' -> w, a' -> m  where
-  realRemoteCallH :: a -> w -> String -> (Handle -> WIO w m ()) -> a'
+
+class (Servable m, Host w) => RPC a a' m w | m -> w, a' -> m, a' -> w where
+  realRemoteCallH :: a -> w -> String -> (Handle -> m ()) -> a'
+
 
 instance ( Receivable m a m' a', Host w, Host w'
          , Servable m, Servable m') 
-         => RPC (WIO w m a) (WIO w' m' a') m' w' where
-  
+         => RPC (WIO w m a) (WIO w' m' a') (WIO w' m') w' where
   {-# INLINE realRemoteCallH #-}
   realRemoteCallH act _ nm putVals = do
     let w = getActWorld act
@@ -196,17 +206,14 @@ instance ( Receivable m a m' a', Host w, Host w'
     putVals handle
     recvVal (undefined :: a) handle
 
-getActWorld :: forall w a m . Host w => WIO w m a -> w
-getActWorld _ = getValue
-
-instance (Sendable w' m a' m a, RPC b b' m w') => RPC (a -> b) (a' -> b') m w' where
+instance (Sendable w' m a' m a, RPC b b' (WIO w' m) w') => RPC (a -> b) (a' -> b') (WIO w' m) w' where
   realRemoteCallH _ w nm putOldVals a = realRemoteCallH (undefined :: b) w nm putVal
     where putVal handle = do
             putOldVals handle
-            sendVal (undefined :: a) handle a 
+            sendVal (undefined :: a) handle a
+            
 
-
-realRemoteCall :: forall a a' w m . RPC a a' m w => a -> String -> a'
+realRemoteCall :: forall a a' m w . RPC a a' m w => a -> String -> a'  
 realRemoteCall i n = realRemoteCallH i (getValue :: w) n $ const $ return ()
 
 class (Host w, Servable m) => Service a m w | a -> w m where

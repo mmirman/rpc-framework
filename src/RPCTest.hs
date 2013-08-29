@@ -13,8 +13,6 @@ $(makeHost "ServerB" "localhost" 9002)
   
 client :: WIO Client IO ()
 client = do
-  onHost Client
-
   add <- $(rpcCall 'addServer) 4
   t <- add 8
   putText $ "r(h4 +) h8 ? " ++ show t
