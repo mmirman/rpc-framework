@@ -41,6 +41,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Concurrent (ThreadId, forkOS)
 import System.IO (Handle)
 import Control.Concurrent.ForkableRPC
+import Control.Exception.CatchableRPC
 
 
 import System.IO.Unsafe
@@ -79,6 +80,7 @@ deriving instance Monad m => Monad (WIO w m)
 deriving instance Functor m => Functor (WIO w m)
 deriving instance MonadIO m => MonadIO (WIO w m)
 deriving instance Forkable m => Forkable (WIO w m)
+deriving instance Catchable m => Catchable (WIO w m)
 instance Servable m => Servable (WIO w m)
 instance MonadTrans (WIO w) where lift = WIO . lift
 
