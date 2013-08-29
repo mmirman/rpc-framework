@@ -6,7 +6,7 @@
  UndecidableInstances,
  MultiParamTypeClasses,
  FunctionalDependencies,
- IncoherentInstances,
+ OverlappingInstances,
  GADTs
  #-}
 {- |
@@ -55,7 +55,7 @@ class Host a where
   getValue :: a
 
   getData :: a -> IO (String, Integer)
-  getData w = do
+  getData _ = do
     let (_ :: a, ioref) = topLevelSetter
     readIORef ioref
     
@@ -119,7 +119,7 @@ class (Host w, Servable m, Servable m') => Sendable w m a m' a'
   makeRefFrom :: w -> a -> AIO m (Ref a a')
 
 instance (Show a, Read a', a ~ a', Servable m', Servable m, Host w) => Sendable w m a m' a' where
-  makeRefFrom _ v = return $ Val (show v)
+  makeRefFrom _ v = return $ Val $ show v
 instance (Show a, Read a', a ~ a', Servable m', Servable m) => Receivable m a m' a' where  
   getRefValue _ (Val s) = return $ read s
   getRefValue _ _ = error "should not be a ref: in Runtime.hs - getRefValue"
@@ -127,7 +127,7 @@ instance (Show a, Read a', a ~ a', Servable m', Servable m) => Receivable m a m'
 instance (Sendable w m b m' b') => Sendable w m (WIO w m b) m' (WIO w' m' b') where
   makeRefFrom w act = do
     ptr <- addService $ \handle -> do
-          bVal <- runWIO $ act
+          bVal :: b <- runWIO act
           bRef :: Ref b b' <- makeRefFrom w bVal
           send handle bRef
     (l,p) <- liftIO $ getData w

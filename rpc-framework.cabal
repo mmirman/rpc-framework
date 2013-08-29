@@ -25,7 +25,8 @@ library
                        Network.Remote.RPC.Internal.Runtime, 
                        Network.Remote.RPC.Internal.MultiServer, 
                        Network.Remote.RPC.Internal.Templates,
-                       Control.Concurrent.ForkableRPC
+                       Control.Concurrent.ForkableRPC,
+                       Control.Exception.CatchableRPC
   build-depends:       base >= 4.3 && < 5.0, 
                        containers >= 0.4 && < 0.6, 
                        template-haskell ==2.7.*,
