@@ -17,7 +17,7 @@ Copyright   :  (c) Matthew Mirman 2012
 License     :  BSD-style (see the file LICENSE)
 Maintainer  :  Matthew Mirman <mmirman@andrew.cmu.edu>
 Stability   :  experimental
-Portability :  GeneralizedNewtypeDeriving, StandaloneDeriving, ScopedTypeVariables, FlexibleInstances, UndecidableInstances, MultiParamTypeClasses, FunctionalDependencies, IncoherentInstances, TypeFamilies
+Portability :  GeneralizedNewtypeDeriving, StandaloneDeriving, ScopedTypeVariables, FlexibleInstances, UndecidableInstances, MultiParamTypeClasses, FunctionalDependencies, OverlappingInstances, FlexibleContexts, KindSignatures
 
 The functions for using a function as a service and calling a remote process
 -}
@@ -45,7 +45,6 @@ import System.IO (Handle)
 import Control.Concurrent.ForkableRPC
 import Control.Exception.CatchableRPC
 
-
 import System.IO.Unsafe
 import Data.IORef
 
@@ -53,7 +52,7 @@ import Data.IORef
 -- only have one constructor, and the location and port should be invariant
 -- of the given constructor. 
 -- Specifically, 'getLocation' and 'getPort' should work even if bottom is supplied.
-class Host a where
+class Show a => Host a where
   getDataDefault :: a -> (String, Integer)
   getValue :: a
 

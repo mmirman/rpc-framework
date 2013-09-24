@@ -29,7 +29,7 @@ library
                        Control.Exception.CatchableRPC
   build-depends:       base >= 4.3 && < 5.0, 
                        containers >= 0.4 && < 0.6, 
-                       template-haskell ==2.7.*,
+                       template-haskell ==2.8.0.0,
                        mtl >= 2.0 && < 2.2,
                        transformers >= 0.2 && < 0.4 ,
                        network >= 2.0 && < 2.5
@@ -42,16 +42,19 @@ library
                StandaloneDeriving,
                ScopedTypeVariables,
                FlexibleInstances,
+               FlexibleContexts,
                UndecidableInstances,
                GADTs,
                MultiParamTypeClasses,
-               IncoherentInstances,
+               OverlappingInstances,
                FunctionalDependencies,
                PatternGuards,
+               TemplateHaskell,
+               KindSignatures,
                TemplateHaskell
 
 executable rpc-test
   main-is: src/RPCTest.hs
-  build-depends: rpc-framework > 2.0, base >= 4.0
+  build-depends: rpc-framework > 2.0, base >= 3.6
   ghc-options: -threaded
   extensions: TemplateHaskell, ScopedTypeVariables
