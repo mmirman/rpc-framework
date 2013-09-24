@@ -25,9 +25,10 @@ import qualified Data.Map as M
 import Data.Monoid (mempty)
 import Control.Concurrent.MVar (modifyMVar, modifyMVar_, newMVar, withMVar, MVar())
 import System.IO (Handle, hWaitForInput, hFlush, hGetLine, hClose, hPutStrLn)
-import Network (connectTo, accept, PortID(PortNumber), listenOn)
+import Network (connectTo, accept, PortID(PortNumber), listenOn, sClose)
 import Data.Functor ((<$>))
 import Control.Concurrent.ForkableRPC
+import Control.Exception.CatchableRPC
 import System.Mem.Weak
 
 data ServiceID = LocNumber Integer
@@ -47,16 +48,19 @@ deriving instance Monad m => Monad (AIO m)
 deriving instance Functor m => Functor (AIO m)
 deriving instance MonadIO m => MonadIO (AIO m)
 deriving instance Forkable m => Forkable (AIO m)
+deriving instance Catchable m => Catchable (AIO m)
 instance MonadTrans AIO where lift = AIO . lift
 
 instance Monad m => MonadReader (State m) (AIO m) where
   ask = AIO ask
   local f (AIO m) = AIO (local f m)
-  
+
+send :: (Show a, MonadIO m) => Handle -> a -> m ()
 send handle val = liftIO $ do
   hPutStrLn handle (show val) 
   hFlush handle
 
+recv :: (Read a, MonadIO m) => Handle -> m a
 recv handle = liftIO $ do 
   hWaitForInput handle $ -1 
   read <$> hGetLine handle
@@ -64,8 +68,7 @@ recv handle = liftIO $ do
 startServer :: forall m a . (Servable m) => Integer -> AIO m a -> m a
 startServer port (AIO aio) = do
   r <- liftIO $ newMVar (mempty :: Handlers m, 0)
-  forkIO $ do
-    s <- liftIO $ listenOn $ PortNumber $ fromInteger port
+  forkIO $ bracket (liftIO $ listenOn $ PortNumber $ fromInteger port) (liftIO . sClose) $ \s -> do
     forever $ do
       (handle, _, _) <- liftIO $ accept s
       message <- recv handle
@@ -114,14 +117,13 @@ connectToService host port service = do
 
 -- | 'Servable' is a declaration that the given monad can be made into a 
 -- servlet.
-class (Functor m, Monad m, MonadIO m, Forkable m) => Servable m 
+class (Functor m, Monad m, MonadIO m, Forkable m, Catchable m) => Servable m
 instance Servable IO
 instance Servable m => Servable (AIO m)
 
-
 track :: Servable m => (String, Integer, ServiceID) -> a -> AIO m a
 track (host,port,service) val = do
-  wv <- liftIO $ mkWeakPtr val $ Just $ do
+  _ <- liftIO $ mkWeakPtr val $ Just $ do
     handle <- connectTo host $ PortNumber $ fromInteger port
     send handle $ Kill service
   return val
